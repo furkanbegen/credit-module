@@ -2,6 +2,8 @@ package com.furkanbegen.creditmodule.service.impl;
 
 import com.furkanbegen.creditmodule.dto.CreateLoanRequest;
 import com.furkanbegen.creditmodule.dto.LoanFilterDTO;
+import com.furkanbegen.creditmodule.dto.LoanPaymentRequest;
+import com.furkanbegen.creditmodule.dto.LoanPaymentResponse;
 import com.furkanbegen.creditmodule.exception.InsufficientCreditLimitException;
 import com.furkanbegen.creditmodule.model.Customer;
 import com.furkanbegen.creditmodule.model.Loan;
@@ -12,9 +14,12 @@ import jakarta.persistence.EntityNotFoundException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,6 +30,9 @@ public class LoanService {
 
   private final CustomerRepository customerRepository;
   private final LoanRepository loanRepository;
+
+  private static final BigDecimal DAILY_RATE = BigDecimal.valueOf(0.001);
+  private static final int MAX_MONTHS_AHEAD = 3;
 
   @Transactional
   public Loan createLoan(Long customerId, CreateLoanRequest request) {
@@ -113,5 +121,106 @@ public class LoanService {
                 new EntityNotFoundException(
                     String.format(
                         "Loan not found with id: %d for customer: %d", loanId, customerId)));
+  }
+
+  @Transactional
+  public LoanPaymentResponse payLoan(Long customerId, Long loanId, LoanPaymentRequest request) {
+    Loan loan = getLoanWithInstallments(customerId, loanId);
+
+    if (loan.getIsPaid()) {
+      throw new IllegalStateException("Loan is already fully paid");
+    }
+
+    LocalDateTime now = LocalDateTime.now();
+    LocalDateTime maxPayableDate = now.plusMonths(MAX_MONTHS_AHEAD);
+
+    List<LoanInstallment> payableInstallments =
+        loan.getInstallments().stream()
+            .filter(installment -> !installment.getIsPaid())
+            .filter(installment -> installment.getDueDate().isBefore(maxPayableDate))
+            .sorted(Comparator.comparing(LoanInstallment::getDueDate))
+            .collect(Collectors.toList());
+
+    if (payableInstallments.isEmpty()) {
+      throw new IllegalStateException("No payable installments found");
+    }
+
+    BigDecimal remainingPayment = request.getPaymentAmount();
+    int installmentsPaid = 0;
+    BigDecimal totalPaid = BigDecimal.ZERO;
+    BigDecimal totalDiscount = BigDecimal.ZERO;
+    BigDecimal totalPenalty = BigDecimal.ZERO;
+
+    for (LoanInstallment installment : payableInstallments) {
+      BigDecimal adjustedAmount = calculateAdjustedAmount(installment, now);
+
+      if (remainingPayment.compareTo(adjustedAmount) >= 0) {
+        // Can pay this installment
+        installment.setIsPaid(true);
+        installment.setPaidAmount(adjustedAmount);
+        installment.setPaymentDate(now);
+
+        remainingPayment = remainingPayment.subtract(adjustedAmount);
+        installmentsPaid++;
+        totalPaid = totalPaid.add(adjustedAmount);
+
+        // Calculate discount or penalty
+        BigDecimal adjustment = adjustedAmount.subtract(installment.getAmount());
+        if (adjustment.compareTo(BigDecimal.ZERO) < 0) {
+          totalDiscount = totalDiscount.add(adjustment.abs());
+        } else {
+          totalPenalty = totalPenalty.add(adjustment);
+        }
+      } else {
+        break;
+      }
+    }
+
+    if (installmentsPaid == 0) {
+      throw new IllegalArgumentException("Payment amount is insufficient for any installment");
+    }
+
+    // Check if loan is fully paid
+    boolean isFullyPaid = loan.getInstallments().stream().allMatch(LoanInstallment::getIsPaid);
+
+    if (isFullyPaid) {
+      loan.setIsPaid(true);
+
+      // Update customer's used credit limit
+      Customer customer = loan.getCustomer();
+      customer.setUsedCreditLimit(customer.getUsedCreditLimit().subtract(loan.getLoanAmount()));
+      customerRepository.save(customer);
+    }
+
+    loanRepository.save(loan);
+
+    return LoanPaymentResponse.builder()
+        .numberOfInstallmentsPaid(installmentsPaid)
+        .totalAmountPaid(totalPaid)
+        .isLoanFullyPaid(isFullyPaid)
+        .totalDiscount(totalDiscount)
+        .totalPenalty(totalPenalty)
+        .build();
+  }
+
+  private BigDecimal calculateAdjustedAmount(
+      LoanInstallment installment, LocalDateTime paymentDate) {
+    long daysDifference =
+        ChronoUnit.DAYS.between(installment.getDueDate().toLocalDate(), paymentDate.toLocalDate());
+
+    if (daysDifference == 0) {
+      return installment.getAmount();
+    }
+
+    BigDecimal adjustmentRate = DAILY_RATE.multiply(BigDecimal.valueOf(Math.abs(daysDifference)));
+    BigDecimal adjustment = installment.getAmount().multiply(adjustmentRate);
+
+    if (daysDifference < 0) {
+      // Payment before due date - apply discount
+      return installment.getAmount().subtract(adjustment);
+    } else {
+      // Payment after due date - apply penalty
+      return installment.getAmount().add(adjustment);
+    }
   }
 }

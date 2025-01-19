@@ -7,6 +7,8 @@ import static org.mockito.Mockito.*;
 
 import com.furkanbegen.creditmodule.dto.CreateLoanRequest;
 import com.furkanbegen.creditmodule.dto.LoanFilterDTO;
+import com.furkanbegen.creditmodule.dto.LoanPaymentRequest;
+import com.furkanbegen.creditmodule.dto.LoanPaymentResponse;
 import com.furkanbegen.creditmodule.exception.InsufficientCreditLimitException;
 import com.furkanbegen.creditmodule.model.Customer;
 import com.furkanbegen.creditmodule.model.InstallmentOption;
@@ -433,6 +435,195 @@ class LoanServiceTest {
     assertThat(installments).isSortedAccordingTo(Comparator.comparing(LoanInstallment::getDueDate));
   }
 
+  @Test
+  void payLoan_WhenPayingMultipleInstallments_ShouldPayEarliestFirst() {
+    // Given
+    Long customerId = 1L;
+    Long loanId = 1L;
+    BigDecimal installmentAmount = BigDecimal.valueOf(1000);
+
+    Loan loan = createLoanWithInstallments(loanId, installmentAmount, 3);
+    when(loanRepository.findByIdAndCustomerId(loanId, customerId)).thenReturn(Optional.of(loan));
+
+    LoanPaymentRequest request = new LoanPaymentRequest();
+    request.setPaymentAmount(BigDecimal.valueOf(2000)); // Enough for 2 installments
+
+    // When
+    LoanPaymentResponse response = loanService.payLoan(customerId, loanId, request);
+
+    // Then
+    assertThat(response.getNumberOfInstallmentsPaid()).isEqualTo(2);
+    assertThat(response.isLoanFullyPaid()).isFalse();
+
+    List<LoanInstallment> installments = new ArrayList<>(loan.getInstallments());
+    installments.sort(Comparator.comparing(LoanInstallment::getDueDate));
+
+    // First two installments should be paid
+    assertThat(installments.get(0).getIsPaid()).isTrue();
+    assertThat(installments.get(1).getIsPaid()).isTrue();
+    // Last installment should remain unpaid
+    assertThat(installments.get(2).getIsPaid()).isFalse();
+  }
+
+  @Test
+  void payLoan_WhenPaymentInsufficientForAnyInstallment_ShouldThrowException() {
+    // Given
+    Long customerId = 1L;
+    Long loanId = 1L;
+    BigDecimal installmentAmount = BigDecimal.valueOf(1000);
+
+    Loan loan = createLoanWithInstallments(loanId, installmentAmount, 3);
+    when(loanRepository.findByIdAndCustomerId(loanId, customerId)).thenReturn(Optional.of(loan));
+
+    LoanPaymentRequest request = new LoanPaymentRequest();
+    request.setPaymentAmount(BigDecimal.valueOf(500)); // Less than one installment
+
+    // When/Then
+    assertThrows(
+        IllegalArgumentException.class, () -> loanService.payLoan(customerId, loanId, request));
+  }
+
+  @Test
+  void payLoan_WhenPayingBeforeDueDate_ShouldApplyDiscount() {
+    // Given
+    Long customerId = 1L;
+    Long loanId = 1L;
+    BigDecimal installmentAmount = BigDecimal.valueOf(1000);
+
+    // Create customer
+    Customer customer = new Customer();
+    customer.setId(customerId);
+    customer.setUsedCreditLimit(installmentAmount);
+
+    Loan loan = createLoanWithInstallments(loanId, installmentAmount, 1);
+    loan.setCustomer(customer); // Set customer
+    loan.setLoanAmount(installmentAmount);
+
+    // Set due date to 10 days in future
+    loan.getInstallments().iterator().next().setDueDate(LocalDateTime.now().plusDays(10));
+
+    when(loanRepository.findByIdAndCustomerId(loanId, customerId)).thenReturn(Optional.of(loan));
+
+    LoanPaymentRequest request = new LoanPaymentRequest();
+    request.setPaymentAmount(BigDecimal.valueOf(1000));
+
+    // When
+    LoanPaymentResponse response = loanService.payLoan(customerId, loanId, request);
+
+    // Then
+    assertThat(response.getTotalDiscount()).isGreaterThan(BigDecimal.ZERO);
+    assertThat(response.getTotalPenalty()).isEqualTo(BigDecimal.ZERO);
+    assertThat(response.getTotalAmountPaid()).isLessThan(installmentAmount);
+    verify(loanRepository).save(loan);
+  }
+
+  @Test
+  void payLoan_WhenPayingAfterDueDate_ShouldApplyPenalty() {
+    // Given
+    Long customerId = 1L;
+    Long loanId = 1L;
+    BigDecimal installmentAmount = BigDecimal.valueOf(1000);
+
+    // Create customer
+    Customer customer = new Customer();
+    customer.setId(customerId);
+    customer.setUsedCreditLimit(installmentAmount);
+
+    Loan loan = createLoanWithInstallments(loanId, installmentAmount, 1);
+    loan.setCustomer(customer); // Set customer
+    loan.setLoanAmount(installmentAmount);
+
+    // Set due date to 10 days in past
+    loan.getInstallments().iterator().next().setDueDate(LocalDateTime.now().minusDays(10));
+
+    when(loanRepository.findByIdAndCustomerId(loanId, customerId)).thenReturn(Optional.of(loan));
+
+    LoanPaymentRequest request = new LoanPaymentRequest();
+    request.setPaymentAmount(BigDecimal.valueOf(1100)); // Include buffer for penalty
+
+    // When
+    LoanPaymentResponse response = loanService.payLoan(customerId, loanId, request);
+
+    // Then
+    assertThat(response.getTotalPenalty()).isGreaterThan(BigDecimal.ZERO);
+    assertThat(response.getTotalDiscount()).isEqualTo(BigDecimal.ZERO);
+    assertThat(response.getTotalAmountPaid()).isGreaterThan(installmentAmount);
+    verify(loanRepository).save(loan);
+  }
+
+  @Test
+  void payLoan_WhenPayingFullLoan_ShouldUpdateCustomerCreditLimit() {
+    // Given
+    Long customerId = 1L;
+    Long loanId = 1L;
+    BigDecimal installmentAmount = BigDecimal.valueOf(1000);
+    BigDecimal totalLoanAmount = BigDecimal.valueOf(3000);
+
+    Customer customer = new Customer();
+    customer.setUsedCreditLimit(totalLoanAmount);
+
+    Loan loan = createLoanWithInstallments(loanId, installmentAmount, 3);
+    loan.setLoanAmount(totalLoanAmount);
+    loan.setCustomer(customer);
+
+    when(loanRepository.findByIdAndCustomerId(loanId, customerId)).thenReturn(Optional.of(loan));
+
+    LoanPaymentRequest request = new LoanPaymentRequest();
+    request.setPaymentAmount(BigDecimal.valueOf(3000));
+
+    // When
+    LoanPaymentResponse response = loanService.payLoan(customerId, loanId, request);
+
+    // Then
+    assertThat(response.isLoanFullyPaid()).isTrue();
+    assertThat(loan.getIsPaid()).isTrue();
+    assertThat(customer.getUsedCreditLimit()).isEqualTo(BigDecimal.ZERO);
+
+    verify(customerRepository).save(customer);
+  }
+
+  @Test
+  void payLoan_WhenLoanAlreadyPaid_ShouldThrowException() {
+    // Given
+    Long customerId = 1L;
+    Long loanId = 1L;
+
+    Loan loan = createLoanWithInstallments(loanId, BigDecimal.valueOf(1000), 1);
+    loan.setIsPaid(true);
+
+    when(loanRepository.findByIdAndCustomerId(loanId, customerId)).thenReturn(Optional.of(loan));
+
+    LoanPaymentRequest request = new LoanPaymentRequest();
+    request.setPaymentAmount(BigDecimal.valueOf(1000));
+
+    // When/Then
+    assertThrows(
+        IllegalStateException.class, () -> loanService.payLoan(customerId, loanId, request));
+  }
+
+  @Test
+  void payLoan_WhenInstallmentsTooFarInFuture_ShouldThrowException() {
+    // Given
+    Long customerId = 1L;
+    Long loanId = 1L;
+    BigDecimal installmentAmount = BigDecimal.valueOf(1000);
+
+    Loan loan = createLoanWithInstallments(loanId, installmentAmount, 1);
+    loan.getInstallments()
+        .iterator()
+        .next()
+        .setDueDate(LocalDateTime.now().plusMonths(4)); // Beyond 3 months
+
+    when(loanRepository.findByIdAndCustomerId(loanId, customerId)).thenReturn(Optional.of(loan));
+
+    LoanPaymentRequest request = new LoanPaymentRequest();
+    request.setPaymentAmount(BigDecimal.valueOf(1000));
+
+    // When/Then
+    assertThrows(
+        IllegalStateException.class, () -> loanService.payLoan(customerId, loanId, request));
+  }
+
   private List<Loan> createSampleLoans() {
     return List.of(
         createLoan(1L, true, 12, false),
@@ -488,6 +679,39 @@ class LoanServiceTest {
       installment.setPaidAmount(BigDecimal.ZERO);
       installment.setDueDate(startDate.plusMonths(i));
       installment.setIsPaid(false);
+      installments.add(installment);
+    }
+
+    loan.setInstallments(installments);
+    return loan;
+  }
+
+  private Loan createLoanWithInstallments(Long id, BigDecimal installmentAmount, int count) {
+    Loan loan = new Loan();
+    loan.setId(id);
+    loan.setIsPaid(false);
+    loan.setNumberOfInstallment(count);
+    loan.setLoanAmount(installmentAmount.multiply(BigDecimal.valueOf(count)));
+
+    // Create and set customer
+    Customer customer = new Customer();
+    customer.setId(1L);
+    customer.setUsedCreditLimit(loan.getLoanAmount());
+    loan.setCustomer(customer);
+
+    Set<LoanInstallment> installments =
+        new TreeSet<>(Comparator.comparing(LoanInstallment::getDueDate));
+
+    LocalDateTime startDate = LocalDateTime.now();
+
+    for (int i = 0; i < count; i++) {
+      LoanInstallment installment = new LoanInstallment();
+      installment.setId((long) (i + 1));
+      installment.setAmount(installmentAmount);
+      installment.setPaidAmount(BigDecimal.ZERO);
+      installment.setDueDate(startDate.plusMonths(i));
+      installment.setIsPaid(false);
+      installment.setLoan(loan);
       installments.add(installment);
     }
 

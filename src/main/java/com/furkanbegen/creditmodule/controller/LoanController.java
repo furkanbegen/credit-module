@@ -5,6 +5,8 @@ import static com.furkanbegen.creditmodule.constant.AppConstant.API_BASE_PATH;
 import com.furkanbegen.creditmodule.dto.CreateLoanRequest;
 import com.furkanbegen.creditmodule.dto.LoanFilterDTO;
 import com.furkanbegen.creditmodule.dto.LoanInstallmentDTO;
+import com.furkanbegen.creditmodule.dto.LoanPaymentRequest;
+import com.furkanbegen.creditmodule.dto.LoanPaymentResponse;
 import com.furkanbegen.creditmodule.dto.LoanResponseDTO;
 import com.furkanbegen.creditmodule.mapper.LoanMapper;
 import com.furkanbegen.creditmodule.service.impl.LoanService;
@@ -46,5 +48,13 @@ public class LoanController {
         loanMapper
             .toDTO(loanService.getLoanWithInstallments(customerId, loanId))
             .getInstallments());
+  }
+
+  @PostMapping("/{loanId}/pay")
+  public ResponseEntity<LoanPaymentResponse> payLoan(
+      @PathVariable Long customerId,
+      @PathVariable Long loanId,
+      @Valid @RequestBody LoanPaymentRequest request) {
+    return ResponseEntity.ok(loanService.payLoan(customerId, loanId, request));
   }
 }

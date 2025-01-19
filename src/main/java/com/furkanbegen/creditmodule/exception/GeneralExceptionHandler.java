@@ -77,4 +77,18 @@ public class GeneralExceptionHandler {
                 .messages(List.of(ex.getMessage()))
                 .build());
   }
+
+  @ExceptionHandler(IllegalStateException.class)
+  @ResponseStatus(HttpStatus.BAD_REQUEST)
+  static ResponseEntity<ErrorResponse> resolveIllegalStateException(
+      final IllegalStateException ex) {
+    return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+        .body(
+            ErrorResponse.builder()
+                .timestamp(LocalDateTime.now())
+                .status(HttpStatus.BAD_REQUEST.value())
+                .error("Invalid Operation")
+                .messages(List.of(ex.getMessage()))
+                .build());
+  }
 }
