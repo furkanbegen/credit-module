@@ -15,6 +15,7 @@ import java.util.List;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -26,12 +27,14 @@ public class LoanController {
   private final LoanMapper loanMapper;
 
   @PostMapping
+  @PreAuthorize("@customerSecurity.hasAccess(authentication, #customerId)")
   public ResponseEntity<LoanResponseDTO> createLoan(
       @PathVariable Long customerId, @Valid @RequestBody CreateLoanRequest request) {
     return ResponseEntity.ok(loanMapper.toDTO(loanService.createLoan(customerId, request)));
   }
 
   @GetMapping
+  @PreAuthorize("@customerSecurity.hasAccess(authentication, #customerId)")
   public ResponseEntity<List<LoanResponseDTO>> getLoans(
       @PathVariable Long customerId, @ModelAttribute LoanFilterDTO filter) {
     return ResponseEntity.ok(
@@ -39,6 +42,7 @@ public class LoanController {
   }
 
   @GetMapping("/{loanId}/installments")
+  @PreAuthorize("@customerSecurity.hasAccess(authentication, #customerId)")
   public ResponseEntity<Set<LoanInstallmentDTO>> getInstallments(
       @PathVariable Long customerId, @PathVariable Long loanId) {
     return ResponseEntity.ok(
@@ -48,6 +52,7 @@ public class LoanController {
   }
 
   @PostMapping("/{loanId}/pay")
+  @PreAuthorize("@customerSecurity.hasAccess(authentication, #customerId)")
   public ResponseEntity<LoanPaymentResponse> payLoan(
       @PathVariable Long customerId,
       @PathVariable Long loanId,

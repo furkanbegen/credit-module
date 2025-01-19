@@ -3,27 +3,25 @@ package com.furkanbegen.creditmodule.model;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import lombok.Data;
-import lombok.EqualsAndHashCode;
+import lombok.Getter;
+import lombok.Setter;
+import lombok.ToString;
 
-@Data
+@Getter
+@Setter
+@ToString(exclude = "loan")
 @Entity
 @Table(name = "loan_installments")
-@EqualsAndHashCode(callSuper = true)
 public class LoanInstallment extends BaseEntity {
 
   @Id
   @GeneratedValue(strategy = GenerationType.IDENTITY)
   private Long id;
 
-  @ManyToOne(fetch = FetchType.LAZY)
-  @JoinColumn(name = "loan_id", nullable = false)
-  private Loan loan;
-
   @Column(nullable = false)
   private BigDecimal amount;
 
-  @Column(name = "paid_amount", nullable = false)
+  @Column(name = "paid_amount")
   private BigDecimal paidAmount;
 
   @Column(name = "due_date", nullable = false)
@@ -34,4 +32,21 @@ public class LoanInstallment extends BaseEntity {
 
   @Column(name = "is_paid", nullable = false)
   private Boolean isPaid;
+
+  @ManyToOne(fetch = FetchType.LAZY)
+  @JoinColumn(name = "loan_id")
+  private Loan loan;
+
+  @Override
+  public boolean equals(Object o) {
+    if (this == o) return true;
+    if (!(o instanceof LoanInstallment)) return false;
+    LoanInstallment that = (LoanInstallment) o;
+    return getId() != null && getId().equals(that.getId());
+  }
+
+  @Override
+  public int hashCode() {
+    return getClass().hashCode();
+  }
 }

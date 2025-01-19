@@ -1,19 +1,38 @@
 package com.furkanbegen.creditmodule.model;
 
 import jakarta.persistence.*;
-import lombok.Data;
-import lombok.EqualsAndHashCode;
+import java.util.Set;
+import lombok.Getter;
+import lombok.Setter;
+import lombok.ToString;
 
-@Data
+@Getter
+@Setter
+@ToString(exclude = {"users"})
 @Entity
 @Table(name = "roles")
-@EqualsAndHashCode(callSuper = true)
 public class Role extends BaseEntity {
 
   @Id
   @GeneratedValue(strategy = GenerationType.IDENTITY)
   private Long id;
 
-  @Column(name = "name", nullable = false, unique = true)
+  @Column(nullable = false, unique = true)
   private String name;
+
+  @ManyToMany(mappedBy = "roles")
+  private Set<User> users;
+
+  @Override
+  public boolean equals(Object o) {
+    if (this == o) return true;
+    if (!(o instanceof Role)) return false;
+    Role role = (Role) o;
+    return getId() != null && getId().equals(role.getId());
+  }
+
+  @Override
+  public int hashCode() {
+    return getClass().hashCode();
+  }
 }

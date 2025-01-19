@@ -38,8 +38,6 @@ public class UserDetailService implements UserDetailsService {
   }
 
   private Collection<? extends GrantedAuthority> getAuthorities(Collection<Role> roles) {
-    return roles.stream()
-        .map(role -> new SimpleGrantedAuthority(role.getName()))
-        .toList();
+    return roles.stream().map(role -> new SimpleGrantedAuthority(role.getName())).toList();
   }
 }

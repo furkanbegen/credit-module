@@ -2,7 +2,6 @@ package com.furkanbegen.creditmodule.mapper;
 
 import com.furkanbegen.creditmodule.dto.LoanInstallmentDTO;
 import com.furkanbegen.creditmodule.model.LoanInstallment;
-
 import java.util.Collections;
 import java.util.Set;
 import java.util.stream.Collectors;

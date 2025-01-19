@@ -78,6 +78,20 @@ public class GeneralExceptionHandler {
                 .build());
   }
 
+  @ExceptionHandler(InsufficientCreditLimitException.class)
+  @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
+  static ResponseEntity<ErrorResponse> resolveInsufficientCreditLimitExceptionException(
+      final InsufficientCreditLimitException ex) {
+    return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+        .body(
+            ErrorResponse.builder()
+                .timestamp(LocalDateTime.now())
+                .status(HttpStatus.INTERNAL_SERVER_ERROR.value())
+                .error(HttpStatus.INTERNAL_SERVER_ERROR.getReasonPhrase())
+                .messages(List.of(ex.getMessage()))
+                .build());
+  }
+
   @ExceptionHandler(IllegalStateException.class)
   @ResponseStatus(HttpStatus.BAD_REQUEST)
   static ResponseEntity<ErrorResponse> resolveIllegalStateException(

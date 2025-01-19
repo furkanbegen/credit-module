@@ -58,6 +58,7 @@ public class LoanService {
     loan.setCustomer(customer);
     loan.setLoanAmount(loanAmountWithInterest); // Store the total amount including interest
     loan.setNumberOfInstallment(request.getNumberOfInstallment().getValue());
+    loan.setInterestRate(request.getInterestRate());
     loan.setCreateDate(LocalDateTime.now());
     loan.setIsPaid(false);
 

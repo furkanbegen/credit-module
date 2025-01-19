@@ -3,13 +3,15 @@ package com.furkanbegen.creditmodule.model;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.util.Set;
-import lombok.Data;
-import lombok.EqualsAndHashCode;
+import lombok.Getter;
+import lombok.Setter;
+import lombok.ToString;
 
-@Data
+@Getter
+@Setter
+@ToString(exclude = {"loans", "user"})
 @Entity
 @Table(name = "customers")
-@EqualsAndHashCode(callSuper = true)
 public class Customer extends BaseEntity {
 
   @Id
@@ -30,4 +32,21 @@ public class Customer extends BaseEntity {
 
   @OneToMany(mappedBy = "customer", cascade = CascadeType.ALL)
   private Set<Loan> loans;
+
+  @OneToOne(fetch = FetchType.LAZY)
+  @JoinColumn(name = "user_id")
+  private User user;
+
+  @Override
+  public boolean equals(Object o) {
+    if (this == o) return true;
+    if (!(o instanceof Customer)) return false;
+    Customer customer = (Customer) o;
+    return getId() != null && getId().equals(customer.getId());
+  }
+
+  @Override
+  public int hashCode() {
+    return getClass().hashCode();
+  }
 }
