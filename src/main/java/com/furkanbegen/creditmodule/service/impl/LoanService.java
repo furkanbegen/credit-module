@@ -103,4 +103,15 @@ public class LoanService {
         filter != null ? filter.getIsOverdue() : null,
         LocalDateTime.now());
   }
+
+  @Transactional(readOnly = true)
+  public Loan getLoanWithInstallments(Long customerId, Long loanId) {
+    return loanRepository
+        .findByIdAndCustomerId(loanId, customerId)
+        .orElseThrow(
+            () ->
+                new EntityNotFoundException(
+                    String.format(
+                        "Loan not found with id: %d for customer: %d", loanId, customerId)));
+  }
 }

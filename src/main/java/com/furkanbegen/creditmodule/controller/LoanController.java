@@ -4,11 +4,13 @@ import static com.furkanbegen.creditmodule.constant.AppConstant.API_BASE_PATH;
 
 import com.furkanbegen.creditmodule.dto.CreateLoanRequest;
 import com.furkanbegen.creditmodule.dto.LoanFilterDTO;
+import com.furkanbegen.creditmodule.dto.LoanInstallmentDTO;
 import com.furkanbegen.creditmodule.dto.LoanResponseDTO;
 import com.furkanbegen.creditmodule.mapper.LoanMapper;
 import com.furkanbegen.creditmodule.service.impl.LoanService;
 import jakarta.validation.Valid;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -35,5 +37,14 @@ public class LoanController {
         loanService.getLoans(customerId, filter).stream()
             .map(loanMapper::toDTO)
             .collect(Collectors.toList()));
+  }
+
+  @GetMapping("/{loanId}/installments")
+  public ResponseEntity<Set<LoanInstallmentDTO>> getInstallments(
+      @PathVariable Long customerId, @PathVariable Long loanId) {
+    return ResponseEntity.ok(
+        loanMapper
+            .toDTO(loanService.getLoanWithInstallments(customerId, loanId))
+            .getInstallments());
   }
 }

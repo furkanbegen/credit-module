@@ -375,6 +375,64 @@ class LoanServiceTest {
                     && hasOverdueInstallments(loan));
   }
 
+  @Test
+  void getLoanWithInstallments_WhenLoanExists_ShouldReturnLoanWithInstallments() {
+    // Given
+    Long customerId = 1L;
+    Long loanId = 1L;
+
+    Loan expectedLoan = createLoan(loanId, false, 12, false);
+    when(loanRepository.findByIdAndCustomerId(loanId, customerId))
+        .thenReturn(Optional.of(expectedLoan));
+
+    // When
+    Loan result = loanService.getLoanWithInstallments(customerId, loanId);
+
+    // Then
+    assertThat(result).isNotNull();
+    assertThat(result.getId()).isEqualTo(loanId);
+    assertThat(result.getInstallments()).hasSize(12);
+    verify(loanRepository).findByIdAndCustomerId(loanId, customerId);
+  }
+
+  @Test
+  void getLoanWithInstallments_WhenLoanDoesNotExist_ShouldThrowEntityNotFoundException() {
+    // Given
+    Long customerId = 1L;
+    Long loanId = 999L;
+
+    when(loanRepository.findByIdAndCustomerId(loanId, customerId)).thenReturn(Optional.empty());
+
+    // When/Then
+    EntityNotFoundException exception =
+        assertThrows(
+            EntityNotFoundException.class,
+            () -> loanService.getLoanWithInstallments(customerId, loanId));
+
+    // Then
+    assertThat(exception.getMessage())
+        .isEqualTo(
+            String.format("Loan not found with id: %d for customer: %d", loanId, customerId));
+    verify(loanRepository).findByIdAndCustomerId(loanId, customerId);
+  }
+
+  @Test
+  void getLoanWithInstallments_ShouldReturnInstallmentsInOrder() {
+    // Given
+    Long customerId = 1L;
+    Long loanId = 1L;
+
+    Loan loan = createLoanWithOrderedInstallments(loanId, 12);
+    when(loanRepository.findByIdAndCustomerId(loanId, customerId)).thenReturn(Optional.of(loan));
+
+    // When
+    Loan result = loanService.getLoanWithInstallments(customerId, loanId);
+
+    // Then
+    List<LoanInstallment> installments = new ArrayList<>(result.getInstallments());
+    assertThat(installments).isSortedAccordingTo(Comparator.comparing(LoanInstallment::getDueDate));
+  }
+
   private List<Loan> createSampleLoans() {
     return List.of(
         createLoan(1L, true, 12, false),
@@ -409,5 +467,31 @@ class LoanServiceTest {
         .anyMatch(
             installment ->
                 !installment.getIsPaid() && installment.getDueDate().isBefore(LocalDateTime.now()));
+  }
+
+  private Loan createLoanWithOrderedInstallments(Long id, int numberOfInstallments) {
+    Loan loan = new Loan();
+    loan.setId(id);
+    loan.setIsPaid(false);
+    loan.setNumberOfInstallment(numberOfInstallments);
+
+    // Use TreeSet with custom comparator to maintain order by dueDate
+    Set<LoanInstallment> installments =
+        new TreeSet<>(Comparator.comparing(LoanInstallment::getDueDate));
+
+    LocalDateTime startDate = LocalDateTime.now();
+
+    for (int i = 0; i < numberOfInstallments; i++) {
+      LoanInstallment installment = new LoanInstallment();
+      installment.setId((long) (i + 1));
+      installment.setAmount(BigDecimal.valueOf(1000));
+      installment.setPaidAmount(BigDecimal.ZERO);
+      installment.setDueDate(startDate.plusMonths(i));
+      installment.setIsPaid(false);
+      installments.add(installment);
+    }
+
+    loan.setInstallments(installments);
+    return loan;
   }
 }
