@@ -6,7 +6,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
-import java.util.stream.Collectors;
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.security.authentication.AbstractAuthenticationToken;
 import org.springframework.security.core.GrantedAuthority;
@@ -33,18 +32,18 @@ public class CustomJwtAuthenticationConverter
     Long userId = jwt.getClaim("user_id");
 
     SecurityUser user =
-            userRepository
-                    .findById(userId)
-                    .map(
-                            u ->
-                                    new SecurityUser(
-                                            u.getId(),
-                                            u.getEmail(),
-                                            u.getPassword(),
-                                            u.getName(),
-                                            u.getSurname(),
-                                            getAuthorities(u.getRoles())))
-                    .orElse(null);
+        userRepository
+            .findById(userId)
+            .map(
+                u ->
+                    new SecurityUser(
+                        u.getId(),
+                        u.getEmail(),
+                        u.getPassword(),
+                        u.getName(),
+                        u.getSurname(),
+                        getAuthorities(u.getRoles())))
+            .orElse(null);
 
     Collection<GrantedAuthority> authorities =
         user != null
@@ -59,7 +58,7 @@ public class CustomJwtAuthenticationConverter
     // Add role-based authorities
     roles.forEach(
         role -> {
-          authorities.add(new SimpleGrantedAuthority( role.getName().toUpperCase()));
+          authorities.add(new SimpleGrantedAuthority(role.getName().toUpperCase()));
         });
 
     return authorities;

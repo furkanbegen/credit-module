@@ -1,12 +1,11 @@
 package com.furkanbegen.creditmodule.security;
 
+import java.util.Collection;
 import lombok.AllArgsConstructor;
 import lombok.NoArgsConstructor;
 import lombok.Value;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
-
-import java.util.Collection;
 
 @Value
 @AllArgsConstructor
