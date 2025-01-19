@@ -56,6 +56,29 @@ cd credit-module
 
 The application will start on `http://localhost:8080`
 
+### Default Users
+
+On first startup, the application automatically creates the following default users:
+
+1. Admin User
+   - Email: admin@test.com
+   - Password: 123456
+   - Role: ROLE_ADMIN
+
+2. Customer User
+   - Email: customer@test.com
+   - Password: 123456
+   - Role: ROLE_CUSTOMER
+   - Initial Credit Limit: 100,000
+
+3. Additional Customer
+   - Email: anotherUser@test.com
+   - Password: 123456
+   - Role: ROLE_CUSTOMER
+   - Initial Credit Limit: 100,000
+
+These default users are created by the `InsertUserComponent` which implements Spring Boot's `CommandLineRunner`. This component also sets up the necessary roles and initializes customer data with credit limits.
+
 ## API Endpoints
 
 ### Authentication
