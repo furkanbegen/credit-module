@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 import com.furkanbegen.creditmodule.dto.CreateLoanRequest;
+import com.furkanbegen.creditmodule.dto.LoanFilterDTO;
 import com.furkanbegen.creditmodule.exception.InsufficientCreditLimitException;
 import com.furkanbegen.creditmodule.model.Customer;
 import com.furkanbegen.creditmodule.model.InstallmentOption;
@@ -17,8 +18,10 @@ import com.furkanbegen.creditmodule.service.impl.LoanService;
 import jakarta.persistence.EntityNotFoundException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.util.Optional;
-import java.util.Set;
+import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
+import java.util.*;
+import java.util.stream.Collectors;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -229,5 +232,182 @@ class LoanServiceTest {
 
     // Verify total amount matches expected
     assertThat(actualTotalAmount.compareTo(expectedTotalAmount)).isZero();
+  }
+
+  @Test
+  void getLoans_WhenCustomerNotFound_ShouldThrowEntityNotFoundException() {
+    // Given
+    Long customerId = 999L;
+    when(customerRepository.existsById(customerId)).thenReturn(false);
+
+    // When/Then
+    assertThrows(
+        EntityNotFoundException.class, () -> loanService.getLoans(customerId, new LoanFilterDTO()));
+  }
+
+  @Test
+  void getLoans_WhenNoFilters_ShouldReturnAllLoans() {
+    // Given
+    Long customerId = 1L;
+    when(customerRepository.existsById(customerId)).thenReturn(true);
+
+    List<Loan> expectedLoans = createSampleLoans();
+    when(loanRepository.findLoansWithFilters(
+            eq(customerId), isNull(), isNull(), isNull(), any(LocalDateTime.class)))
+        .thenReturn(expectedLoans);
+
+    // When
+    List<Loan> result = loanService.getLoans(customerId, null);
+
+    // Then
+    assertThat(result).hasSize(3);
+    verify(loanRepository)
+        .findLoansWithFilters(
+            eq(customerId), isNull(), isNull(), isNull(), any(LocalDateTime.class));
+  }
+
+  @Test
+  void getLoans_WhenFilterByPaidStatus_ShouldReturnOnlyPaidLoans() {
+    // Given
+    Long customerId = 1L;
+    when(customerRepository.existsById(customerId)).thenReturn(true);
+
+    LoanFilterDTO filter = new LoanFilterDTO();
+    filter.setIsPaid(true);
+
+    List<Loan> expectedLoans =
+        createSampleLoans().stream().filter(loan -> loan.getIsPaid()).collect(Collectors.toList());
+
+    when(loanRepository.findLoansWithFilters(
+            eq(customerId), eq(true), isNull(), isNull(), any(LocalDateTime.class)))
+        .thenReturn(expectedLoans);
+
+    // When
+    List<Loan> result = loanService.getLoans(customerId, filter);
+
+    // Then
+    assertThat(result).allMatch(loan -> loan.getIsPaid());
+  }
+
+  @Test
+  void getLoans_WhenFilterByInstallments_ShouldReturnLoansWithMatchingInstallments() {
+    // Given
+    Long customerId = 1L;
+    when(customerRepository.existsById(customerId)).thenReturn(true);
+
+    LoanFilterDTO filter = new LoanFilterDTO();
+    filter.setNumberOfInstallment(InstallmentOption.TWELVE);
+
+    List<Loan> expectedLoans =
+        createSampleLoans().stream()
+            .filter(loan -> loan.getNumberOfInstallment() == 12)
+            .collect(Collectors.toList());
+
+    when(loanRepository.findLoansWithFilters(
+            eq(customerId), isNull(), eq(12), isNull(), any(LocalDateTime.class)))
+        .thenReturn(expectedLoans);
+
+    // When
+    List<Loan> result = loanService.getLoans(customerId, filter);
+
+    // Then
+    assertThat(result).allMatch(loan -> loan.getNumberOfInstallment() == 12);
+  }
+
+  @Test
+  void getLoans_WhenFilterByOverdue_ShouldReturnOverdueLoans() {
+    // Given
+    Long customerId = 1L;
+    when(customerRepository.existsById(customerId)).thenReturn(true);
+
+    LoanFilterDTO filter = new LoanFilterDTO();
+    filter.setIsOverdue(true);
+
+    List<Loan> expectedLoans =
+        createSampleLoans().stream()
+            .filter(this::hasOverdueInstallments)
+            .collect(Collectors.toList());
+
+    when(loanRepository.findLoansWithFilters(
+            eq(customerId), isNull(), isNull(), eq(true), any(LocalDateTime.class)))
+        .thenReturn(expectedLoans);
+
+    // When
+    List<Loan> result = loanService.getLoans(customerId, filter);
+
+    // Then
+    assertThat(result).allMatch(this::hasOverdueInstallments);
+  }
+
+  @Test
+  void getLoans_WhenMultipleFilters_ShouldApplyAllFilters() {
+    // Given
+    Long customerId = 1L;
+    when(customerRepository.existsById(customerId)).thenReturn(true);
+
+    LoanFilterDTO filter = new LoanFilterDTO();
+    filter.setIsPaid(false);
+    filter.setNumberOfInstallment(InstallmentOption.TWELVE);
+    filter.setIsOverdue(true);
+
+    List<Loan> expectedLoans =
+        createSampleLoans().stream()
+            .filter(
+                loan ->
+                    !loan.getIsPaid()
+                        && loan.getNumberOfInstallment() == 12
+                        && hasOverdueInstallments(loan))
+            .collect(Collectors.toList());
+
+    when(loanRepository.findLoansWithFilters(
+            eq(customerId), eq(false), eq(12), eq(true), any(LocalDateTime.class)))
+        .thenReturn(expectedLoans);
+
+    // When
+    List<Loan> result = loanService.getLoans(customerId, filter);
+
+    // Then
+    assertThat(result)
+        .allMatch(
+            loan ->
+                !loan.getIsPaid()
+                    && loan.getNumberOfInstallment() == 12
+                    && hasOverdueInstallments(loan));
+  }
+
+  private List<Loan> createSampleLoans() {
+    return List.of(
+        createLoan(1L, true, 12, false),
+        createLoan(2L, false, 6, true),
+        createLoan(3L, false, 12, true));
+  }
+
+  private Loan createLoan(Long id, boolean isPaid, int installments, boolean hasOverdue) {
+    Loan loan = new Loan();
+    loan.setId(id);
+    loan.setIsPaid(isPaid);
+    loan.setNumberOfInstallment(installments);
+
+    Set<LoanInstallment> loanInstallments = new HashSet<>();
+    LocalDateTime now = LocalDateTime.now();
+
+    for (int i = 0; i < installments; i++) {
+      LoanInstallment installment = new LoanInstallment();
+      installment.setIsPaid(isPaid);
+      // If hasOverdue is true, set some installments to be overdue
+      installment.setDueDate(
+          hasOverdue && i < 2 ? now.minus(1, ChronoUnit.MONTHS) : now.plus(i, ChronoUnit.MONTHS));
+      loanInstallments.add(installment);
+    }
+
+    loan.setInstallments(loanInstallments);
+    return loan;
+  }
+
+  private boolean hasOverdueInstallments(Loan loan) {
+    return loan.getInstallments().stream()
+        .anyMatch(
+            installment ->
+                !installment.getIsPaid() && installment.getDueDate().isBefore(LocalDateTime.now()));
   }
 }

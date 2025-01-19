@@ -1,6 +1,7 @@
 package com.furkanbegen.creditmodule.service.impl;
 
 import com.furkanbegen.creditmodule.dto.CreateLoanRequest;
+import com.furkanbegen.creditmodule.dto.LoanFilterDTO;
 import com.furkanbegen.creditmodule.exception.InsufficientCreditLimitException;
 import com.furkanbegen.creditmodule.model.Customer;
 import com.furkanbegen.creditmodule.model.Loan;
@@ -12,6 +13,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -84,5 +86,21 @@ public class LoanService {
 
   private LocalDateTime getFirstDayOfNextMonth(LocalDateTime date) {
     return date.plusMonths(1).withDayOfMonth(1).withHour(0).withMinute(0).withSecond(0).withNano(0);
+  }
+
+  @Transactional(readOnly = true)
+  public List<Loan> getLoans(Long customerId, LoanFilterDTO filter) {
+    if (!customerRepository.existsById(customerId)) {
+      throw new EntityNotFoundException("Customer not found");
+    }
+
+    return loanRepository.findLoansWithFilters(
+        customerId,
+        filter != null ? filter.getIsPaid() : null,
+        filter != null && filter.getNumberOfInstallment() != null
+            ? filter.getNumberOfInstallment().getValue()
+            : null,
+        filter != null ? filter.getIsOverdue() : null,
+        LocalDateTime.now());
   }
 }
