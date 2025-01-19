@@ -42,10 +42,7 @@ public class CustomerSecurityEvaluator {
 
       return customerRepository
           .findByUserId(userId)
-          .map(
-              customer -> {
-                return customerId.equals(customer.getId());
-              })
+          .map(customer -> customerId.equals(customer.getId()))
           .orElse(false);
     }
 
