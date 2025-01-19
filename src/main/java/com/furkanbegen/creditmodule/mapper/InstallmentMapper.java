@@ -2,6 +2,8 @@ package com.furkanbegen.creditmodule.mapper;
 
 import com.furkanbegen.creditmodule.dto.LoanInstallmentDTO;
 import com.furkanbegen.creditmodule.model.LoanInstallment;
+
+import java.util.Collections;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.springframework.stereotype.Component;
@@ -27,7 +29,7 @@ public class InstallmentMapper {
 
   public Set<LoanInstallmentDTO> toDTOSet(Set<LoanInstallment> installments) {
     if (installments == null) {
-      return null;
+      return Collections.emptySet();
     }
 
     return installments.stream().map(this::toDTO).collect(Collectors.toSet());

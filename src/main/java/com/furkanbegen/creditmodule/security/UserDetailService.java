@@ -3,7 +3,6 @@ package com.furkanbegen.creditmodule.security;
 import com.furkanbegen.creditmodule.model.Role;
 import com.furkanbegen.creditmodule.repository.UserRepository;
 import java.util.Collection;
-import java.util.stream.Collectors;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -41,6 +40,6 @@ public class UserDetailService implements UserDetailsService {
   private Collection<? extends GrantedAuthority> getAuthorities(Collection<Role> roles) {
     return roles.stream()
         .map(role -> new SimpleGrantedAuthority(role.getName()))
-        .collect(Collectors.toList());
+        .toList();
   }
 }

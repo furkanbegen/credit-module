@@ -17,7 +17,7 @@ public class SecurityUser implements UserDetails {
   private String password;
   private String name;
   private String surname;
-  Collection<? extends GrantedAuthority> authorities;
+  private Collection<? extends GrantedAuthority> authorities;
 
   @Override
   public String getUsername() {

@@ -19,7 +19,6 @@ import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -139,7 +138,7 @@ public class LoanService {
             .filter(installment -> !installment.getIsPaid())
             .filter(installment -> installment.getDueDate().isBefore(maxPayableDate))
             .sorted(Comparator.comparing(LoanInstallment::getDueDate))
-            .collect(Collectors.toList());
+            .toList();
 
     if (payableInstallments.isEmpty()) {
       throw new IllegalStateException("No payable installments found");

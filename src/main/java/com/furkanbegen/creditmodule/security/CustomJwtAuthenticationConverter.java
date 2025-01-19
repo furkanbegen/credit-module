@@ -12,7 +12,6 @@ import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
-import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -20,11 +19,9 @@ public class CustomJwtAuthenticationConverter
     implements Converter<Jwt, AbstractAuthenticationToken> {
 
   private final UserRepository userRepository;
-  private final JwtGrantedAuthoritiesConverter defaultConverter;
 
   public CustomJwtAuthenticationConverter(UserRepository userRepository) {
     this.userRepository = userRepository;
-    this.defaultConverter = new JwtGrantedAuthoritiesConverter();
   }
 
   @Override
@@ -57,9 +54,7 @@ public class CustomJwtAuthenticationConverter
 
     // Add role-based authorities
     roles.forEach(
-        role -> {
-          authorities.add(new SimpleGrantedAuthority(role.getName().toUpperCase()));
-        });
+        role -> authorities.add(new SimpleGrantedAuthority(role.getName().toUpperCase())));
 
     return authorities;
   }

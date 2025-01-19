@@ -23,7 +23,6 @@ import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
-import java.util.stream.Collectors;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -277,8 +276,7 @@ class LoanServiceTest {
     LoanFilterDTO filter = new LoanFilterDTO();
     filter.setIsPaid(true);
 
-    List<Loan> expectedLoans =
-        createSampleLoans().stream().filter(loan -> loan.getIsPaid()).collect(Collectors.toList());
+    List<Loan> expectedLoans = createSampleLoans().stream().filter(Loan::getIsPaid).toList();
 
     when(loanRepository.findLoansWithFilters(
             eq(customerId), eq(true), isNull(), isNull(), any(LocalDateTime.class)))
@@ -288,7 +286,7 @@ class LoanServiceTest {
     List<Loan> result = loanService.getLoans(customerId, filter);
 
     // Then
-    assertThat(result).allMatch(loan -> loan.getIsPaid());
+    assertThat(result).isNotEmpty().allMatch(Loan::getIsPaid);
   }
 
   @Test
@@ -301,9 +299,7 @@ class LoanServiceTest {
     filter.setNumberOfInstallment(InstallmentOption.TWELVE);
 
     List<Loan> expectedLoans =
-        createSampleLoans().stream()
-            .filter(loan -> loan.getNumberOfInstallment() == 12)
-            .collect(Collectors.toList());
+        createSampleLoans().stream().filter(loan -> loan.getNumberOfInstallment() == 12).toList();
 
     when(loanRepository.findLoansWithFilters(
             eq(customerId), isNull(), eq(12), isNull(), any(LocalDateTime.class)))
@@ -313,7 +309,7 @@ class LoanServiceTest {
     List<Loan> result = loanService.getLoans(customerId, filter);
 
     // Then
-    assertThat(result).allMatch(loan -> loan.getNumberOfInstallment() == 12);
+    assertThat(result).isNotEmpty().allMatch(loan -> loan.getNumberOfInstallment() == 12);
   }
 
   @Test
@@ -326,9 +322,7 @@ class LoanServiceTest {
     filter.setIsOverdue(true);
 
     List<Loan> expectedLoans =
-        createSampleLoans().stream()
-            .filter(this::hasOverdueInstallments)
-            .collect(Collectors.toList());
+        createSampleLoans().stream().filter(this::hasOverdueInstallments).toList();
 
     when(loanRepository.findLoansWithFilters(
             eq(customerId), isNull(), isNull(), eq(true), any(LocalDateTime.class)))
@@ -338,7 +332,7 @@ class LoanServiceTest {
     List<Loan> result = loanService.getLoans(customerId, filter);
 
     // Then
-    assertThat(result).allMatch(this::hasOverdueInstallments);
+    assertThat(result).isNotEmpty().allMatch(this::hasOverdueInstallments);
   }
 
   @Test
@@ -359,7 +353,7 @@ class LoanServiceTest {
                     !loan.getIsPaid()
                         && loan.getNumberOfInstallment() == 12
                         && hasOverdueInstallments(loan))
-            .collect(Collectors.toList());
+            .toList();
 
     when(loanRepository.findLoansWithFilters(
             eq(customerId), eq(false), eq(12), eq(true), any(LocalDateTime.class)))
@@ -370,6 +364,7 @@ class LoanServiceTest {
 
     // Then
     assertThat(result)
+        .isNotEmpty()
         .allMatch(
             loan ->
                 !loan.getIsPaid()

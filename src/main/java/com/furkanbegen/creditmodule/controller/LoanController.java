@@ -13,7 +13,6 @@ import com.furkanbegen.creditmodule.service.impl.LoanService;
 import jakarta.validation.Valid;
 import java.util.List;
 import java.util.Set;
-import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -36,9 +35,7 @@ public class LoanController {
   public ResponseEntity<List<LoanResponseDTO>> getLoans(
       @PathVariable Long customerId, @ModelAttribute LoanFilterDTO filter) {
     return ResponseEntity.ok(
-        loanService.getLoans(customerId, filter).stream()
-            .map(loanMapper::toDTO)
-            .collect(Collectors.toList()));
+        loanService.getLoans(customerId, filter).stream().map(loanMapper::toDTO).toList());
   }
 
   @GetMapping("/{loanId}/installments")
